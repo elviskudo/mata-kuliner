@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { ORDERS, MENU_ITEMS } from '@/lib/data';
+import { MENU_ITEMS } from '@/lib/data';
+import { useEffect, useState } from 'react';
 
 function getMenuImage(name: string) {
     const item = MENU_ITEMS.find(i => i.name.toLowerCase() === name.toLowerCase());
@@ -9,10 +10,78 @@ function getMenuImage(name: string) {
     return item?.image || fuzzyItem?.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+interface OrderItem {
+    id: string | number;
+    name: string;
+    qty: number;
+    price: number;
+    notes?: string;
+}
+
+interface Order {
+    id: number;
+    customerName: string;
+    totalAmount: number;
+    status: string;
+    items: OrderItem[];
+    orderType: string;
+    paymentMethod: string;
+    createdAt: string;
+}
+
+interface FlattenedOrder {
+    id: number;
+    originalOrder: Order;
+    menu: string;
+    qty: number;
+    notes?: string;
+    type: string;
+    status: string;
+}
+
 export default function RecentOrdersTable() {
-    // Filter out some orders to match "Recent Order" - maybe just take all from data for now
-    // The design image shows Order IDs 1024, 1023, 1022
-    // My data.ts has 1024, 1023, 1022. Perfect.
+    const [orders, setOrders] = useState<FlattenedOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchOrders = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/orders`);
+                const data: Order[] = await response.json();
+
+                const flattened: FlattenedOrder[] = [];
+                // Take only recent 5 orders (or top 5)
+                const recentData = data.slice(0, 5);
+
+                recentData.forEach(order => {
+                    if (order.items && Array.isArray(order.items)) {
+                        order.items.forEach(item => {
+                            flattened.push({
+                                id: order.id,
+                                originalOrder: order,
+                                menu: item.name,
+                                qty: item.qty,
+                                notes: item.notes,
+                                type: order.orderType || 'Dine In',
+                                status: order.status,
+                            });
+                        });
+                    }
+                });
+
+                // Set only first 5 flattened items to keep the list short
+                setOrders(flattened.slice(0, 5));
+            } catch (error) {
+                console.error('Failed to fetch recent orders:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchOrders();
+    }, []);
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
@@ -22,30 +91,6 @@ export default function RecentOrdersTable() {
             default: return 'bg-gray-200 text-gray-800';
         }
     };
-
-    // Actually the design buttons look like solid buttons with white text or specific colors.
-    // New: Blue background, White text? Or Light Blue?
-    // Image 1: "New" is Blue Background, White Text. "Cooking" is Orange Background, White Text. "Done" is Teal Background, White Text. "Delivery" is Light Teal background. "Here" is Light Green... wait.
-    // Let's look closely at Image 1.
-    // Status Buttons:
-    // New: Light Blue BG, Blue Text? No, looks like Solid Blue-ish.
-    // Cooking: Solid Orange.
-    // Done: Solid Teal.
-    // Type Buttons:
-    // Delivery: Light Greenish/Blueish?
-    // Here: Solid Green.
-
-    // Let's refine based on "tampilannya sama persis" (look exactly the same).
-    // Status:
-    // New: bg-[#8ab4f8] text-white? or bg-blue-400
-    // Cooking: bg-orange-400 text-white
-    // Done: bg-[#62C2C6] (Teal) text-white
-
-    // Type:
-    // Delivery: bg-[#C3EED4] text-[#1E5D38] ? (Looks like light mint)
-    // Here: bg-[#6FCF97] text-white ? (Looks like solid green)
-
-    // I will try to match colors closely with Tailwind classes.
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm mt-6">
@@ -63,10 +108,12 @@ export default function RecentOrdersTable() {
                         </tr>
                     </thead>
                     <tbody className="space-y-4">
-                        {/* Spacer row for spacing like in design? No, usually margin on tr doesn't work well without border-collapse separate. */}
-                        {/* I'll use simple rows. */}
-                        {ORDERS.map((order) => (
-                            <tr key={order.id} className="border-b border-gray-50 last:border-none">
+                        {loading ? (
+                            <tr>
+                                <td colSpan={5} className="py-8 text-center text-gray-500">Loading recent orders...</td>
+                            </tr>
+                        ) : orders.map((order, index) => (
+                            <tr key={`${order.id}-${index}`} className="border-b border-gray-50 last:border-none">
                                 <td className="py-4 px-4 text-gray-500">#{order.id}</td>
                                 <td className="py-4 px-4">
                                     <div className="flex items-center">
@@ -82,34 +129,31 @@ export default function RecentOrdersTable() {
                                 <td className="py-4 px-4 text-center font-bold text-gray-900">{order.qty}</td>
                                 <td className="py-4 px-4 text-center">
                                     <span className={`px-6 py-1.5 rounded-lg text-white font-medium text-sm inline-block w-24
-                                        ${order.status === 'New' ? 'bg-[#81Bcf8]' : ''}
+                                        ${order.status === 'New' || order.status === 'pending' ? 'bg-[#81Bcf8]' : ''}
                                         ${order.status === 'Cooking' ? 'bg-[#FDBA74]' : ''}
-                                        ${order.status === 'Cooking' ? 'bg-orange-300' : '' /* Wait, FDBA74 is orange-300 */}
-                                        ${order.status === 'Cooking' ? 'bg-orange-300' : ''} 
-                                        ${/* Let's use standard tailwind for now and adjust */ ''}
-                                        ${order.status === 'New' ? 'bg-blue-400' :
-                                            order.status === 'Cooking' ? 'bg-orange-300' :
-                                                order.status === 'Done' ? 'bg-teal-400' : 'bg-gray-400'}
+                                        ${order.status === 'Done' ? 'bg-[#4FD1C5]' : '' /* Manual Teal */}
+                                        ${order.status !== 'New' && order.status !== 'pending' && order.status !== 'Cooking' && order.status !== 'Done' ? 'bg-gray-400' : ''}
                                     `}>
-                                        {/* Correction on colors: 
-                                            New: Looks Blue-400ish 
-                                            Cooking: Looks Orange-300ish 
-                                            Done: Looks Teal-400ish
-                                        */}
-                                        {order.status}
+                                        {/* Normalize status display */}
+                                        {order.status === 'pending' ? 'New' : order.status}
                                     </span>
                                 </td>
                                 <td className="py-4 px-4 text-center">
                                     <span className={`px-6 py-1.5 rounded-lg font-medium text-sm inline-block w-24
-                                        ${order.type === 'Delivery' ? 'bg-teal-100 text-teal-800' :
+                                        ${order.type === 'Take away' ? 'bg-purple-100 text-purple-800' :
                                             order.type === 'Dine In' ? 'bg-green-400 text-white' :
-                                                order.type === 'Away' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100'}
+                                                'bg-gray-100'}
                                     `}>
                                         {order.type}
                                     </span>
                                 </td>
                             </tr>
                         ))}
+                        {!loading && orders.length === 0 && (
+                            <tr>
+                                <td colSpan={5} className="py-8 text-center text-gray-500">No recent orders found</td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -122,3 +166,4 @@ export default function RecentOrdersTable() {
         </div>
     );
 }
+
