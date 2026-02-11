@@ -16,16 +16,16 @@ export class OrdersService {
         });
     }
 
-    async findOne(id: number): Promise<Order> {
+    async findOne(id: number): Promise<Order | null> {
         return this.ordersRepository.findOne({ where: { id } });
     }
 
-    async create(orderData: any): Promise<Order> {
+    async create(orderData: Partial<Order>): Promise<Order> {
         const order = this.ordersRepository.create(orderData);
         return this.ordersRepository.save(order);
     }
 
-    async updateStatus(id: number, status: string): Promise<Order> {
+    async updateStatus(id: number, status: string): Promise<Order | null> {
         await this.ordersRepository.update(id, { status });
         return this.findOne(id);
     }
