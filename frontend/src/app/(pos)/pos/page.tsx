@@ -96,21 +96,58 @@ export default function PosPage() {
         }).filter(item => item.qty > 0));
     };
 
-    const clearCart = () => {
+    const clearCart = async (paymentMethod: 'Cash' | 'QRIS', orderType: 'Take away' | 'Here') => {
         if (cartItems.length === 0) return;
 
         const subtotal = cartItems.reduce((acc, i) => acc + i.price * i.qty, 0);
-        const tax = subtotal * 0.05;
+        const tax = subtotal * 0.11;
         const total = subtotal + tax;
 
-        setReceiptData({
+        const receiptInfo = {
             items: [...cartItems],
             subtotal,
             tax,
             total,
             date: new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ''),
-            id: Math.random().toString().slice(2, 14)
-        });
+            id: Math.random().toString().slice(2, 14),
+            paymentMethod,
+            orderType
+        };
+
+        setReceiptData(receiptInfo);
+
+        // Save transaction to backend
+        try {
+            await fetch(`${API_BASE_URL}/transactions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: total,
+                    paymentMethod,
+                    orderType,
+                    items: cartItems,
+                    subtotal,
+                    tax,
+                    cashierName: 'Muhammad syarif'
+                })
+            });
+
+            // Create kitchen order
+            await fetch(`${API_BASE_URL}/orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customerName: 'Muhammad syarif',
+                    totalAmount: total,
+                    status: 'pending',
+                    items: cartItems,
+                    orderType,
+                    paymentMethod
+                })
+            });
+        } catch (error) {
+            console.error('Error saving transaction:', error);
+        }
 
         setCartItems([]);
         setPrintProgress(0);
@@ -122,15 +159,33 @@ export default function PosPage() {
             {/* Receipt Modal */}
             {showReceipt && (
                 <div className="fixed inset-0 z-[100] bg-blue-50/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                    <button
-                        onClick={() => setShowReceipt(false)}
-                        className="absolute top-8 left-8 w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-lg active:scale-95"
-                    >
-                        <ArrowLeft size={24} />
-                    </button>
+                    <div className="absolute top-8 left-8 flex gap-4">
+                        <button
+                            onClick={() => setShowReceipt(false)}
+                            className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-lg active:scale-95"
+                        >
+                            <ArrowLeft size={24} />
+                        </button>
+                        <button
+                            onClick={async () => {
+                                const { generateReceiptPDF } = await import('@/utils/receiptPDF');
+                                generateReceiptPDF(receiptData);
+                            }}
+                            className="px-6 h-12 rounded-full bg-green-500 flex items-center justify-center gap-2 text-white hover:bg-green-600 transition-all shadow-lg active:scale-95 font-bold"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download PDF
+                        </button>
+                    </div>
 
-                    <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col items-center p-8 relative">
+                    <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col items-center p-8 relative" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
                         <div className="w-full space-y-6">
+                            {/* Logo and Header */}
+                            <div className="flex flex-col items-center gap-3 pb-4 border-b border-blue-100">
+                                <img src="/logo.png" alt="Mata Kuliner" className="w-16 h-16 object-contain" />
+                                <h3 className="text-lg font-black text-blue-600 tracking-tight">MATA KULINER</h3>
+                            </div>
+
                             <div className="flex items-center justify-between text-xs font-bold text-gray-400">
                                 <span>Muhammad syarif - cashier</span>
                             </div>
@@ -154,11 +209,11 @@ export default function PosPage() {
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span>Subtotal</span>
-                                    <span className="text-gray-900">RP {receiptData.subtotal.toLocaleString()}.000</span>
+                                    <span className="text-gray-900">RP {receiptData.subtotal.toLocaleString('id-ID')}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span>Pajak</span>
-                                    <span className="text-gray-900">RP {receiptData.tax.toLocaleString()}.000</span>
+                                    <span className="text-gray-900">RP {receiptData.tax.toLocaleString('id-ID')}</span>
                                 </div>
                             </div>
 
@@ -167,15 +222,15 @@ export default function PosPage() {
                             <div className="space-y-3 text-sm font-extrabold">
                                 <div className="flex justify-between items-center text-gray-400">
                                     <span>Type order</span>
-                                    <span className="text-gray-900">Take away</span>
+                                    <span className="text-gray-900">{receiptData.orderType}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-gray-400">
                                     <span>Type pay</span>
-                                    <span className="text-gray-900">Cash</span>
+                                    <span className="text-gray-900">{receiptData.paymentMethod}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-blue-600 pt-2">
                                     <span>Total</span>
-                                    <span className="text-xl">RP {receiptData.total.toLocaleString()}.000</span>
+                                    <span className="text-xl">RP {receiptData.total.toLocaleString('id-ID')}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-gray-400">
                                     <span>Tunai</span>

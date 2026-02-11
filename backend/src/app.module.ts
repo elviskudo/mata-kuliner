@@ -15,6 +15,11 @@ import { Recipe } from './recipe.entity';
 import { RecipeIngredient } from './recipe-ingredient.entity';
 import { RecipesController } from './recipes.controller';
 import { RecipesService } from './recipes.service';
+import { Transaction } from './transaction.entity';
+import { TransactionsController } from './transactions.controller';
+import { TransactionsService } from './transactions.service';
+import { OrdersController } from './orders.controller';
+import { OrdersService } from './orders.service';
 
 @Module({
   imports: [
@@ -24,9 +29,9 @@ import { RecipesService } from './recipes.service';
       autoLoadEntities: true,
       synchronize: true, // WARNING: Only for development!
     }),
-    TypeOrmModule.forFeature([Product, Order, Employee, Menu, MenuIngredient, Recipe, RecipeIngredient]),
+    TypeOrmModule.forFeature([Product, Order, Employee, Menu, MenuIngredient, Recipe, RecipeIngredient, Transaction]),
   ],
-  controllers: [AppController, ProductsController, MenusController, RecipesController],
-  providers: [AppService, ProductsService, MenusService, RecipesService],
+  controllers: [AppController, ProductsController, MenusController, RecipesController, TransactionsController, OrdersController],
+  providers: [AppService, ProductsService, MenusService, RecipesService, TransactionsService, OrdersService],
 })
 export class AppModule { }

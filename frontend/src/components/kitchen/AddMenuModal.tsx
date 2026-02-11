@@ -121,6 +121,13 @@ export default function AddMenuModal({ isOpen, onClose, onSuccess, item }: AddMe
         setLoading(true);
 
         try {
+            // Validate recipe selection
+            if (!selectedRecipeId) {
+                alert("Resep harus dipilih!");
+                setLoading(false);
+                return;
+            }
+
             if (selectedIngredients.some(ing => !ing.productId)) {
                 alert("Semua bahan baku harus dipilih!");
                 setLoading(false);
@@ -186,21 +193,25 @@ export default function AddMenuModal({ isOpen, onClose, onSuccess, item }: AddMe
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-6">
                             <div className="relative">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Resep (Opsional)</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    Pilih Resep <span className="text-red-500">*</span>
+                                    {item && <span className="text-xs text-gray-400 ml-2">(Tidak dapat diubah)</span>}
+                                </label>
                                 <div className="relative group">
                                     <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors">
                                         <Search size={18} />
                                     </div>
                                     <input
                                         type="text"
-                                        placeholder={currentRecipe ? currentRecipe.name : "-- Gunakan Resep --"}
+                                        placeholder={currentRecipe ? currentRecipe.name : "-- Pilih Resep --"}
                                         value={recipeSearchTerm}
                                         onChange={(e) => {
                                             setRecipeSearchTerm(e.target.value);
                                             setShowRecipeDropdown(true);
                                         }}
                                         onFocus={() => setShowRecipeDropdown(true)}
-                                        className="w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all text-gray-900 placeholder:text-gray-400"
+                                        disabled={!!item}
+                                        className={`w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all text-gray-900 placeholder:text-gray-400 ${item ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                     />
                                     <button
                                         type="button"

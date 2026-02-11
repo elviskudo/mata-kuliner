@@ -16,11 +16,12 @@ interface CartProps {
     items: CartItem[];
     onUpdateQty: (id: string, delta: number) => void;
     onRemove: (id: string) => void;
-    onClear: () => void;
+    onClear: (paymentMethod: 'Cash' | 'QRIS', orderType: 'Take away' | 'Here') => void;
 }
 
 export function Cart({ items, onUpdateQty, onRemove, onClear }: CartProps) {
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'QRIS'>('Cash');
+    const [orderType, setOrderType] = useState<'Take away' | 'Here'>('Take away');
     const [timeLeft, setTimeLeft] = useState(105); // 1:45 as in image
 
     useEffect(() => {
@@ -39,12 +40,13 @@ export function Cart({ items, onUpdateQty, onRemove, onClear }: CartProps) {
     };
 
     const subtotal = items.reduce((acc, item) => acc + item.price * item.qty, 0);
-    const tax = subtotal * 0.05; // 5% tax example
+    const tax = subtotal * 0.11; // 11% tax
     const total = subtotal + tax;
 
     const handleTransaction = () => {
-        onClear();
+        onClear(paymentMethod, orderType);
         setPaymentMethod('Cash');
+        setOrderType('Take away');
         setTimeLeft(105);
     };
 
@@ -71,14 +73,26 @@ export function Cart({ items, onUpdateQty, onRemove, onClear }: CartProps) {
                 <div className="flex gap-6 mt-8">
                     <label className="flex items-center gap-2 cursor-pointer group">
                         <div className="relative flex items-center justify-center">
-                            <input type="radio" name="orderType" className="peer appearance-none w-5 h-5 rounded-full border-2 border-gray-200 checked:border-blue-600 transition-all" defaultChecked />
+                            <input
+                                type="radio"
+                                name="orderType"
+                                checked={orderType === 'Take away'}
+                                onChange={() => setOrderType('Take away')}
+                                className="peer appearance-none w-5 h-5 rounded-full border-2 border-gray-200 checked:border-blue-600 transition-all"
+                            />
                             <div className="absolute w-2.5 h-2.5 bg-blue-600 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                         </div>
                         <span className="text-sm font-bold text-gray-900">Take away</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer group">
                         <div className="relative flex items-center justify-center">
-                            <input type="radio" name="orderType" className="peer appearance-none w-5 h-5 rounded-full border-2 border-gray-200 checked:border-blue-600 transition-all" />
+                            <input
+                                type="radio"
+                                name="orderType"
+                                checked={orderType === 'Here'}
+                                onChange={() => setOrderType('Here')}
+                                className="peer appearance-none w-5 h-5 rounded-full border-2 border-gray-200 checked:border-blue-600 transition-all"
+                            />
                             <div className="absolute w-2.5 h-2.5 bg-blue-600 rounded-full scale-0 peer-checked:scale-100 transition-transform" />
                         </div>
                         <span className="text-sm font-bold text-gray-900">Here</span>
@@ -92,30 +106,64 @@ export function Cart({ items, onUpdateQty, onRemove, onClear }: CartProps) {
             <div className="flex-1 overflow-y-auto px-8 space-y-6 scrollbar-none">
                 {paymentMethod === 'QRIS' ? (
                     <div className="h-full flex flex-col items-center justify-center py-4">
+                        {/* Back Button */}
+                        <button
+                            onClick={() => setPaymentMethod('Cash')}
+                            className="absolute top-24 right-8 w-12 h-12 bg-white rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-gray-600 hover:text-blue-600 transition-all hover:scale-110 active:scale-95 border border-gray-100"
+                            title="Kembali ke detail order"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
                         <h3 className="text-3xl font-black text-blue-600 mb-8">Rp {total.toLocaleString()}.00</h3>
 
-                        <div className="relative p-8 bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100 border border-gray-50 flex flex-col items-center group">
-                            <div className="w-64 h-64 bg-white relative">
-                                <img
-                                    src="https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=MataKulinerOrder"
-                                    alt="QRIS QR Code"
-                                    className="w-full h-full object-contain"
-                                />
-                                {/* QR Frame Decoration */}
-                                <div className="absolute -top-2 -left-2 w-8 h-8 border-t-4 border-l-4 border-blue-600 rounded-tl-xl" />
-                                <div className="absolute -top-2 -right-2 w-8 h-8 border-t-4 border-r-4 border-blue-600 rounded-tr-xl" />
-                                <div className="absolute -bottom-2 -left-2 w-8 h-8 border-b-4 border-l-4 border-blue-600 rounded-bl-xl" />
-                                <div className="absolute -bottom-2 -right-2 w-8 h-8 border-b-4 border-r-4 border-blue-600 rounded-br-xl" />
-                            </div>
-                            <p className="mt-8 text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Scan QRIS untuk membayar</p>
-                        </div>
+                        {timeLeft > 0 ? (
+                            <>
+                                <div className="relative p-8 bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100 border border-gray-50 flex flex-col items-center group">
+                                    <div className="w-64 h-64 bg-white relative">
+                                        <img
+                                            src="https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=MataKulinerOrder"
+                                            alt="QRIS QR Code"
+                                            className="w-full h-full object-contain"
+                                        />
+                                        {/* QR Frame Decoration */}
+                                        <div className="absolute -top-2 -left-2 w-8 h-8 border-t-4 border-l-4 border-blue-600 rounded-tl-xl" />
+                                        <div className="absolute -top-2 -right-2 w-8 h-8 border-t-4 border-r-4 border-blue-600 rounded-tr-xl" />
+                                        <div className="absolute -bottom-2 -left-2 w-8 h-8 border-b-4 border-l-4 border-blue-600 rounded-bl-xl" />
+                                        <div className="absolute -bottom-2 -right-2 w-8 h-8 border-b-4 border-r-4 border-blue-600 rounded-br-xl" />
+                                    </div>
+                                    <p className="mt-8 text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Scan QRIS untuk membayar</p>
+                                </div>
 
-                        <div className="mt-12 flex justify-end w-full">
-                            <div className="bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl border border-blue-100 flex items-center gap-3">
-                                <span className="text-xs font-bold uppercase tracking-wider">Sisa waktu:</span>
-                                <span className="text-lg font-black">{formatTime(timeLeft)}</span>
+                                <div className="mt-12 flex justify-end w-full">
+                                    <div className="bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl border border-blue-100 flex items-center gap-3">
+                                        <span className="text-xs font-bold uppercase tracking-wider">Sisa waktu:</span>
+                                        <span className="text-lg font-black">{formatTime(timeLeft)}</span>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="relative p-12 bg-red-50 rounded-[2.5rem] shadow-2xl shadow-red-100 border border-red-100 flex flex-col items-center">
+                                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <h4 className="text-2xl font-black text-red-600 mb-2">Waktu Telah Habis</h4>
+                                <p className="text-sm font-bold text-red-400 text-center mb-6">Silakan kembali dan pilih metode pembayaran lagi</p>
+                                <button
+                                    onClick={() => {
+                                        setPaymentMethod('Cash');
+                                        setTimeLeft(105);
+                                    }}
+                                    className="px-8 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg hover:shadow-xl active:scale-95"
+                                >
+                                    Kembali
+                                </button>
                             </div>
-                        </div>
+                        )}
                     </div>
                 ) : items.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-300">
@@ -175,26 +223,41 @@ export function Cart({ items, onUpdateQty, onRemove, onClear }: CartProps) {
                 </div>
 
                 <div className="flex gap-4">
-                    <div className="flex-1 flex items-center justify-between bg-blue-50/50 px-6 py-4 rounded-2xl border border-blue-100/50 group">
-                        <span className="text-blue-600 font-black text-lg">Rp {total.toLocaleString()}.00</span>
+                    {/* Payment Method Tabs */}
+                    <div className="flex-1 bg-gray-50 rounded-2xl p-1.5 flex gap-1.5">
                         <button
                             onClick={() => {
-                                setPaymentMethod(prev => prev === 'Cash' ? 'QRIS' : 'Cash');
+                                setPaymentMethod('Cash');
+                            }}
+                            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${paymentMethod === 'Cash'
+                                ? 'bg-white text-blue-600 shadow-md'
+                                : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            💵 Cash
+                        </button>
+                        <button
+                            onClick={() => {
+                                setPaymentMethod('QRIS');
                                 if (paymentMethod === 'Cash') setTimeLeft(105);
                             }}
-                            className="text-xs font-black bg-white text-blue-600 px-4 py-2 rounded-xl border border-blue-200 shadow-sm active:scale-95 transition-all hover:bg-blue-600 hover:text-white"
+                            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all ${paymentMethod === 'QRIS'
+                                ? 'bg-white text-blue-600 shadow-md'
+                                : 'text-gray-400 hover:text-gray-600'
+                                }`}
                         >
-                            Ganti
+                            📱 QRIS
                         </button>
                     </div>
                 </div>
 
                 <button
                     onClick={handleTransaction}
-                    className="w-full mt-6 py-6 bg-blue-100 text-blue-600 font-black text-xl rounded-[2rem] hover:bg-blue-600 hover:text-white transition-all shadow-lg shadow-blue-100/50 flex items-center justify-center gap-3 group active:scale-[0.98]"
+                    disabled={items.length === 0}
+                    className="w-full mt-6 py-6 bg-blue-600 text-white font-black text-xl rounded-[2rem] hover:bg-blue-700 transition-all shadow-lg shadow-blue-100/50 flex items-center justify-center gap-3 group active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Receipt className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    Transaction
+                    Pay
                 </button>
             </div>
         </div>
