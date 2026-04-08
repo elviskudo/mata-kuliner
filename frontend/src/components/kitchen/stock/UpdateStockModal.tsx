@@ -86,8 +86,19 @@ export default function UpdateStockModal({ isOpen, onClose, onUpdate, item }: Up
                             >
                                 <Minus size={20} />
                             </button>
-                            <div className="flex-1 text-center font-bold text-2xl text-gray-900">
-                                {amount} <span className="text-gray-400 font-medium text-lg ml-1">{item.unit.toLowerCase()}</span>
+                            <div className="flex-1 flex items-center justify-center">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={amount.toString()}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value, 10);
+                                        setAmount(isNaN(val) ? 0 : Math.max(0, val));
+                                    }}
+                                    className="w-16 text-right font-bold text-2xl text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 appearance-none m-0 p-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    style={{ MozAppearance: 'textfield' }}
+                                />
+                                <span className="text-gray-400 font-medium text-lg ml-2">{item.unit.toLowerCase()}</span>
                             </div>
                             <button
                                 onClick={() => setAmount(amount + 1)}

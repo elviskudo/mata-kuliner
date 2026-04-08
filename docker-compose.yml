@@ -10,6 +10,8 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
+      # NEXT_PUBLIC_ vars are embedded at build time into the browser JS bundle.
+      # The browser accesses the backend directly, so we use localhost (the host machine).
       - NEXT_PUBLIC_API_URL=http://localhost:3001
     depends_on:
       - backend

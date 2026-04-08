@@ -25,6 +25,11 @@ export class MenusController {
         return this.menusService.update(+id, menuData);
     }
 
+    @Delete('reset/all')
+    async reset() {
+        return this.menusService.reset();
+    }
+
     @Delete(':id')
     async remove(@Param('id') id: string) {
         return this.menusService.remove(+id);

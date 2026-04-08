@@ -38,3 +38,22 @@ cd backend
 bun install
 bun run start:dev
 ```
+
+### Tips Pengembangan Cepat
+
+1. **Jangan Stop Container (`Ctrl+C`) untuk Refresh Code**:
+   Cukup **Save File** di code editor, perubahan akan otomatis terupdate (Hot Reload).
+
+2. **Jika Harus Restart**:
+   Gunakan command ini agar tidak perlu build ulang image (lebih cepat):
+   ```bash
+   docker compose up
+   ```
+   Hilangkan flag `--build` kecuali jika anda mengubah `package.json` atau `Dockerfile`.
+
+3. **Restart Frontend/Backend Saja**:
+   ```bash
+   docker compose restart frontend
+   # atau
+   docker compose restart backend
+   ```

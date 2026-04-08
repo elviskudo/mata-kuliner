@@ -2,34 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-    LayoutDashboard,
-    ClipboardList,
-    Package,
-    FileText,
-    Wallet,
-    Users,
-    UserCircle,
-    Settings,
-    CircleHelp,
-    LogOut
-} from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Users, Package, CalendarCheck, BookOpen, UserCog, LogOut, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const menuItems = [
+const mainMenuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-    { icon: ClipboardList, label: "Orders", href: "/dashboard/orders" },
-    { icon: Package, label: "Product", href: "/dashboard/product" },
-    { icon: FileText, label: "Stock", href: "/dashboard/stock" },
-    { icon: Wallet, label: "Income", href: "/dashboard/income" },
-    { icon: Users, label: "Employee", href: "/dashboard/employee" },
-    { icon: UserCircle, label: "Profile", href: "/dashboard/profile" },
+    { icon: ShoppingCart, label: "Riwayat Order", href: "/dashboard/history" },
+    { icon: UserCog, label: "Karyawan", href: "/dashboard/employees" },
+    { icon: Package, label: "Bahan & Inventori", href: "/dashboard/stock" },
+    { icon: TrendingUp, label: "Laporan Keuangan", href: "/dashboard/income" },
+    { icon: CalendarCheck, label: "Laporan Harian", href: "/dashboard/closing" },
+    { icon: Users, label: "Member & Poin", href: "/dashboard/members" },
 ];
 
-const bottomItems = [
-    { icon: Settings, label: "Setting", href: "/dashboard/settings" },
-    { icon: CircleHelp, label: "Help", href: "/dashboard/help" },
-];
+const bottomItems: { icon: any; label: string; href: string }[] = [];
 
 export function Sidebar() {
     const pathname = usePathname();
@@ -41,7 +27,7 @@ export function Sidebar() {
             </div>
 
             <div className="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
-                {menuItems.map((item) => {
+                {mainMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href;
                     return (

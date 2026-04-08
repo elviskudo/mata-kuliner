@@ -7,14 +7,18 @@ import * as express from 'express';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  app.enableCors({
+    origin: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
   // Increase payload limit for base64 images
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-  app.enableCors();
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
   });
-  await app.listen(process.env.PORT ?? 3001);
+  await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }
 bootstrap();

@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Member } from './member.entity';
 
 @Entity({ schema: 'pos', name: 'transactions' })
 export class Transaction {
@@ -28,4 +29,11 @@ export class Transaction {
 
     @CreateDateColumn()
     createdAt: Date;
+
+    @ManyToOne(() => Member, (member) => member.transactions, { nullable: true })
+    @JoinColumn({ name: 'memberId' })
+    member: Member;
+
+    @Column({ nullable: true })
+    memberId: number;
 }

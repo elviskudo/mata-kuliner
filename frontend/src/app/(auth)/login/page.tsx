@@ -2,51 +2,41 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, ChefHat, Store, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button"; // Will create this next
-import { cn } from "@/lib/utils";
-
-const roles = [
-    {
-        id: "owner",
-        title: "Owner",
-        icon: Store,
-        description: "Full access to dashboard & management",
-        color: "bg-blue-500",
-        redirect: "/dashboard",
-    },
-    {
-        id: "cashier",
-        title: "Cashier",
-        icon: Users, // Using Users as a proxy for Cashier/POS interaction
-        description: "Process orders & payments",
-        color: "bg-emerald-500",
-        redirect: "/pos",
-    },
-    {
-        id: "kitchen",
-        title: "Kitchen",
-        icon: ChefHat,
-        description: "Manage orders & stock",
-        color: "bg-orange-500",
-        redirect: "/kitchen",
-    },
-];
+import { Store, ArrowRight, Phone, Key, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 export default function LoginPage() {
     const router = useRouter();
-    const [selectedRole, setSelectedRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = () => {
-        if (!selectedRole) return;
+    // Employee State
+    const [identifier, setIdentifier] = useState("");
+    const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleEmployeeLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
         setLoading(true);
-        const role = roles.find((r) => r.id === selectedRole);
-        if (role) {
-            // Simulate login delay
-            setTimeout(() => {
-                router.push(role.redirect);
-            }, 800);
+        try {
+            const res = await fetch(`${API_BASE_URL}/auth/login/employee`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ identifier, password }),
+            });
+            if (!res.ok) throw new Error("Login gagal. Periksa nomor telepon dan password.");
+
+            const data = await res.json();
+            if (data.role?.toLowerCase() === "kitchen") {
+                router.push("/kitchen");
+            } else {
+                router.push("/pos");
+            }
+        } catch (error: any) {
+            alert(error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -65,7 +55,7 @@ export default function LoginPage() {
                         </div>
                         <h2 className="text-4xl font-bold mb-4">Manage Your Restaurant Efficiently</h2>
                         <p className="text-blue-100 text-lg">
-                            One platform for Owner, Cashier, and Kitchen staff. Streamline your operations today.
+                            Login Karyawan untuk mengelola operasional harian.
                         </p>
                     </div>
                     <div className="relative z-10 mt-12 text-sm text-blue-200">
@@ -73,67 +63,72 @@ export default function LoginPage() {
                     </div>
                 </div>
 
-                {/* Right Side: Role Selection */}
-                <div className="p-12 flex flex-col justify-center">
+                {/* Right Side: Login Form */}
+                <div className="p-8 md:p-12 flex flex-col justify-center">
                     <div className="mb-8">
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h3>
-                        <p className="text-gray-500">Please select your role to continue</p>
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Login Karyawan</h3>
+                        <p className="text-gray-500">Silakan login untuk memulai shift Anda</p>
                     </div>
 
-                    <div className="space-y-4 mb-8">
-                        {roles.map((role) => {
-                            const Icon = role.icon;
-                            const isSelected = selectedRole === role.id;
+                    <form onSubmit={handleEmployeeLogin} className="space-y-5 animate-in fade-in slide-in-from-right-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700">Email / No. HP / Nama</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Phone className="h-5 w-5 text-gray-400" />
+                                </div>
+                                <input
+                                    type="text"
+                                    required
+                                    value={identifier}
+                                    onChange={(e) => setIdentifier(e.target.value)}
+                                    className="pl-10 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 focus:bg-white transition-colors"
+                                    placeholder="Masukkan Email / No. HP / Nama"
+                                />
+                            </div>
+                        </div>
 
-                            return (
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700">Password / PIN Akses</label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Key className="h-5 w-5 text-gray-400" />
+                                </div>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="pl-10 pr-10 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 focus:bg-white transition-colors"
+                                    placeholder="Masukkan kata sandi..."
+                                />
                                 <button
-                                    key={role.id}
-                                    onClick={() => setSelectedRole(role.id)}
-                                    className={cn(
-                                        "w-full text-left p-4 rounded-xl border-2 transition-all duration-200 flex items-center gap-4 group relative overflow-hidden",
-                                        isSelected
-                                            ? `border-${role.color.replace("bg-", "")} bg-gray-50 ring-1 ring-${role.color.replace("bg-", "")}`
-                                            : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-                                    )}
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
                                 >
-                                    <div
-                                        className={cn(
-                                            "w-12 h-12 rounded-lg flex items-center justify-center transition-colors",
-                                            isSelected ? role.color : "bg-gray-100 group-hover:bg-gray-200"
-                                        )}
-                                    >
-                                        <Icon className={cn("w-6 h-6", isSelected && "text-white")} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-semibold text-gray-900">{role.title}</h4>
-                                        <p className="text-sm text-gray-500">{role.description}</p>
-                                    </div>
-                                    {isSelected && (
-                                        <div className="absolute right-4 text-blue-600 animate-in fade-in zoom-in">
-                                            <div className={`w-4 h-4 rounded-full ${role.color}`} />
-                                        </div>
-                                    )}
+                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                 </button>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        </div>
 
-                    <button
-                        onClick={handleLogin}
-                        disabled={!selectedRole || loading}
-                        className={cn(
-                            "w-full py-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                            selectedRole ? "bg-gray-900 hover:bg-gray-800 shadow-lg hover:shadow-xl translate-y-0" : "bg-gray-300"
-                        )}
-                    >
-                        {loading ? (
-                            "Accessing System..."
-                        ) : (
-                            <>
-                                Continue to System <ArrowRight className="w-5 h-5" />
-                            </>
-                        )}
-                    </button>
+                        <button
+                            type="submit"
+                            disabled={loading || !identifier || !password}
+                            className="w-full py-4 mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-semibold transition-all shadow-lg shadow-blue-200 disabled:shadow-none flex items-center justify-center gap-2"
+                        >
+                            {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Masuk...</> : <><ArrowRight className="w-5 h-5" /> Masuk ke Sistem</>}
+                        </button>
+                    </form>
+
+                    <div className="mt-8 text-center">
+                        <p className="text-sm text-gray-500">
+                            Anda Pemilik Resto?{" "}
+                            <Link href="/owner/login" className="text-blue-600 font-semibold hover:underline">
+                                Login di sini
+                            </Link>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

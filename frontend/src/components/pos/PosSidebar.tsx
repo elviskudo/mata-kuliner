@@ -2,16 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Receipt, UtensilsCrossed, ShoppingCart, User, LogOut, DollarSign, Users } from "lucide-react";
+import { LayoutDashboard, Receipt, UtensilsCrossed, ShoppingCart, User, LogOut, DollarSign, Users, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/pos" },
     { icon: DollarSign, label: "Financial", href: "/financial" },
     { icon: Users, label: "Member", href: "/member" },
-    { icon: Receipt, label: "Transaction", href: "/pos/transactions" },
-    { icon: UtensilsCrossed, label: "Menu", href: "/pos/menu" },
-    { icon: ShoppingCart, label: "Cart", href: "/pos/cart" },
     { icon: User, label: "Profile", href: "/pos/profile" },
 ];
 

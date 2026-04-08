@@ -1,16 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Search, Filter, Calendar, ChevronLeft, ChevronRight, Eye, Printer } from 'lucide-react';
+import { Search, Filter, Calendar, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import OrderDetailModal from '@/components/kitchen/OrderDetailModal';
-import { MENU_ITEMS } from '@/lib/data';
-
-// Helper for images (reused/shared)
-function getMenuImage(name: string) {
-    const item = MENU_ITEMS.find(i => i.name.toLowerCase() === name.toLowerCase());
-    const fuzzyItem = MENU_ITEMS.find(i => name.toLowerCase().includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(name.toLowerCase()));
-    return item?.image || fuzzyItem?.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60';
-}
 
 interface OrderItem {
     id: string | number;
@@ -31,31 +23,23 @@ interface Order {
     createdAt: string;
 }
 
-// Interface for flattened order item for table display
-interface FlattenedOrder {
-    id: number;
-    originalOrder: Order;
-    menu: string;
-    qty: number;
-    notes?: string;
-    type: string;
-    status: string;
-    timestamp: string;
-    customerName: string;
-}
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function OrdersPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('All Type');
-    const [orders, setOrders] = useState<FlattenedOrder[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
+        setMounted(true);
         fetchOrders();
+        // Auto-refresh every 10 seconds so new orders appear automatically
+        const interval = setInterval(fetchOrders, 10000);
+        return () => clearInterval(interval);
     }, []);
 
     const fetchOrders = async () => {
@@ -63,27 +47,26 @@ export default function OrdersPage() {
             const response = await fetch(`${API_BASE_URL}/orders`);
             const data: Order[] = await response.json();
 
-            // Flatten orders for table display: one row per item
-            const flattened: FlattenedOrder[] = [];
-            data.forEach(order => {
-                if (order.items && Array.isArray(order.items)) {
-                    order.items.forEach(item => {
-                        flattened.push({
-                            id: order.id,
-                            originalOrder: order,
-                            menu: item.name,
-                            qty: item.qty,
-                            notes: item.notes,
-                            type: order.orderType || 'Dine In', // Default if missing
-                            status: order.status,
-                            timestamp: new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            customerName: order.customerName || 'Customer'
-                        });
-                    });
+            const completedStatuses = ['COMPLETED', 'Done', 'DONE', 'completed'];
+
+            // Sort: pending first (newest first), completed last (oldest first)
+            data.sort((a, b) => {
+                const aCompleted = completedStatuses.includes(a.status);
+                const bCompleted = completedStatuses.includes(b.status);
+
+                // If one is completed and other isn't → pending group first
+                if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+
+                if (!aCompleted) {
+                    // Both pending: newest (highest ID) first
+                    return b.id - a.id;
+                } else {
+                    // Both completed: oldest first
+                    return a.id - b.id;
                 }
             });
 
-            setOrders(flattened);
+            setOrders(data);
         } catch (error) {
             console.error('Failed to fetch orders:', error);
         } finally {
@@ -91,15 +74,37 @@ export default function OrdersPage() {
         }
     };
 
-    const handleViewOrder = (id: string) => {
-        setSelectedOrderId(id);
+    const handleViewOrder = (order: Order) => {
+        setSelectedOrder(order);
         setIsModalOpen(true);
     };
 
-    // Filter orders based on search query AND filter type
+    const handleCompleteOrder = async (id: number) => {
+        if (!confirm('Apakah pesanan ini sudah selesai?')) return;
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'COMPLETED' })
+            });
+
+            if (res.ok) {
+                fetchOrders(); // Refresh to re-sort
+            }
+        } catch (err) {
+            console.error('Failed to complete order', err);
+        }
+    };
+
+    // Filter orders based on search query (ID or Type) AND filter type
     const filteredOrders = orders.filter(order => {
-        const matchesSearch = order.menu.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesType = filterType === 'All Type' ? true : order.type === filterType;
+        // STRICT FILTER: Only show Dine In and Take away
+        if (order.orderType !== 'Dine In' && order.orderType !== 'Take away') return false;
+
+        const matchesSearch = order.id.toString().includes(searchQuery) ||
+            order.orderType?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesType = filterType === 'All Type' ? true : order.orderType === filterType;
         return matchesSearch && matchesType;
     });
 
@@ -108,7 +113,7 @@ export default function OrdersPage() {
             <OrderDetailModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                orderId={selectedOrderId}
+                order={selectedOrder}
             />
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-800">Orders</h1>
@@ -121,7 +126,7 @@ export default function OrdersPage() {
                     <div className="relative">
                         <div className="flex items-center border rounded-lg px-3 py-2 bg-white text-gray-600">
                             <Calendar size={18} className="mr-2" />
-                            <span>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                            <span>{mounted ? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Loading..."}</span>
                         </div>
                     </div>
 
@@ -151,7 +156,7 @@ export default function OrdersPage() {
                     </div>
                     <input
                         type="text"
-                        placeholder="Search menu..."
+                        placeholder="Search order ID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:border-blue-300 focus:ring-blue-300 sm:text-sm transition duration-150 ease-in-out"
@@ -159,81 +164,103 @@ export default function OrdersPage() {
                 </div>
             </div>
 
-            {/* Orders Table */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            {/* Orders Table - Financial Report Style */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table className="w-full">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Table</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Menu</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th className="px-8 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-wider">Order ID</th>
+                                <th className="px-8 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                <th className="px-8 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-wider">Order Type</th>
+                                <th className="px-8 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-wider">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-10 text-center text-gray-500">Loading orders...</td>
+                                    <td colSpan={5} className="px-8 py-10 text-center text-gray-500">Loading orders...</td>
                                 </tr>
-                            ) : filteredOrders.length > 0 ? filteredOrders.map((order, index) => (
-                                <tr key={`${order.id}-${order.menu}-${index}`}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">#{order.id}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.timestamp}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Table 45</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{order.customerName}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">
-                                        <div>
-                                            <div className="flex items-center space-x-3">
-                                                <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
-                                                    <img src={getMenuImage(order.menu)} alt={order.menu} className="w-full h-full object-cover" />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center space-x-2">
-                                                        <span className="font-medium text-gray-900">{order.menu}</span>
-                                                        <span className="text-gray-500">x{order.qty}</span>
+                            ) : filteredOrders.length > 0 ? (
+                                filteredOrders.map((order) => {
+                                    // SLA Calculation
+                                    const createdAt = new Date(order.createdAt);
+                                    const elapsedMinutes = Math.floor((new Date().getTime() - createdAt.getTime()) / 60000);
+                                    const isPending = order.status !== 'COMPLETED' && order.status !== 'Done';
+
+                                    let slaColor = '';
+                                    let slaText = '';
+                                    if (isPending) {
+                                        if (elapsedMinutes > 20) {
+                                            slaColor = 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500';
+                                            slaText = 'text-red-700 font-bold';
+                                        } else if (elapsedMinutes >= 10) {
+                                            slaColor = 'bg-yellow-50 hover:bg-yellow-100 border-l-4 border-l-yellow-500';
+                                            slaText = 'text-yellow-700 font-bold';
+                                        } else {
+                                            slaColor = 'bg-green-50 hover:bg-green-100 border-l-4 border-l-green-500';
+                                            slaText = 'text-green-700 font-bold';
+                                        }
+                                    } else {
+                                        slaColor = 'bg-gray-50/50 opacity-60 border-l-4 border-l-gray-300';
+                                        slaText = 'text-gray-500';
+                                    }
+
+                                    return (
+                                        <tr key={order.id} className={`transition-colors ${slaColor}`}>
+                                            <td className="px-8 py-4 text-sm font-bold text-gray-900">#{order.id}</td>
+                                            <td className="px-8 py-4 text-sm text-gray-600">
+                                                <div>{createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {createdAt.toLocaleDateString()}</div>
+                                                {isPending && (
+                                                    <div className={`text-xs mt-1 ${slaText}`}>
+                                                        ⏳ Menunggu: {elapsedMinutes} mnt
                                                     </div>
-                                                    {order.notes && <div className="text-xs text-gray-400">{order.notes}</div>}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-md
-                                             ${order.type === 'Take away' ? 'bg-purple-100 text-purple-800' :
-                                                order.type === 'Dine In' ? 'bg-green-500 text-white' :
-                                                    'bg-gray-100'}
-                                         `}>
-                                            {order.type}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <div className="flex justify-center space-x-2">
-                                            <button
-                                                onClick={() => handleViewOrder(order.id.toString())}
-                                                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button className="p-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100">
-                                                <Printer size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )) : (
+                                                )}
+                                            </td>
+                                            <td className="px-8 py-4 whitespace-nowrap">
+                                                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-md
+                                                     ${order.orderType === 'Take away' ? 'bg-purple-100 text-purple-800' :
+                                                        order.orderType === 'Dine In' ? 'bg-indigo-100 text-indigo-800' :
+                                                            'bg-gray-100'}
+                                                 `}>
+                                                    {order.orderType || 'Dine In'}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-4 text-center flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleViewOrder(order)}
+                                                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-bold text-xs hover:bg-blue-100 transition-all"
+                                                >
+                                                    Detail
+                                                </button>
+                                                {isPending && (
+                                                    <button
+                                                        onClick={() => handleCompleteOrder(order.id)}
+                                                        className="px-4 py-2 bg-green-50 text-green-600 rounded-xl font-bold text-xs hover:bg-green-100 transition-all border border-green-200"
+                                                    >
+                                                        Selesai
+                                                    </button>
+                                                )}
+                                                {!isPending && (
+                                                    <span className="px-3 py-2 text-xs font-bold text-gray-400 bg-gray-100 rounded-xl border border-gray-200">
+                                                        Selesai
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                                        No orders found matching "{searchQuery}" {(filterType !== 'All Type') && `with type "${filterType}"`}
+                                    <td colSpan={4} className="px-8 py-12 text-center text-gray-500">
+                                        No orders found matching "{searchQuery}"
                                     </td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
+
 
                 {/* Pagination (Static) */}
                 <div className="bg-white px-4 py-3 flex items-center justify-center border-t border-gray-200 sm:px-6">

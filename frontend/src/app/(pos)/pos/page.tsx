@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Bell, Loader2, Settings, ArrowLeft } from "lucide-react";
+import { Search, Bell, Loader2, Settings, AlertTriangle } from "lucide-react";
 import { ProductCard } from "@/components/pos/ProductCard";
 import { Cart } from "@/components/pos/Cart";
+import { ReceiptModal } from "@/components/pos/ReceiptModal";
+import { ComplaintModal } from "@/components/pos/ComplaintModal";
+import { API_BASE_URL } from "@/lib/config";
+import HeaderProfileBadge from "@/components/shared/HeaderProfileBadge";
+import { ShiftModal } from "@/components/pos/ShiftModal";
 
 interface CartItem {
     id: string;
@@ -20,10 +25,94 @@ export default function PosPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [showReceipt, setShowReceipt] = useState(false);
+    const [showComplaint, setShowComplaint] = useState(false);
     const [receiptData, setReceiptData] = useState<any>(null);
-    const [printProgress, setPrintProgress] = useState(0);
+    const [selectedMember, setSelectedMember] = useState<any>(null); // Member type
+    const [time, setTime] = useState(new Date());
+    const [mounted, setMounted] = useState(false);
 
-    const API_BASE_URL = 'http://localhost:3001';
+    const [heldOrders, setHeldOrders] = useState<{ id: string, name: string, items: CartItem[], time: string }[]>([]);
+
+    const [showStartShift, setShowStartShift] = useState(false);
+    const [showEndShift, setShowEndShift] = useState(false);
+    const [activeShift, setActiveShift] = useState<any>(null);
+
+    const checkActiveShift = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/shift-sessions/active`);
+            if (res.ok) {
+                const data = await res.text();
+                if (data) {
+                    setActiveShift(JSON.parse(data));
+                    setShowStartShift(false);
+                } else {
+                    setActiveShift(null);
+                    setShowStartShift(true);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    useEffect(() => {
+        setMounted(true);
+        const timer = setInterval(() => setTime(new Date()), 1000);
+        checkActiveShift();
+
+        // Load held orders from local storage
+        try {
+            const stored = localStorage.getItem('mata_kuliner_held_orders');
+            if (stored) {
+                setHeldOrders(JSON.parse(stored));
+            }
+        } catch (e) {
+            console.error('Failed to load held orders', e);
+        }
+
+        return () => clearInterval(timer);
+    }, []);
+
+    const saveHoldOrder = () => {
+        if (cartItems.length === 0) return;
+
+        const customerName = selectedMember?.name || `Customer ${heldOrders.length + 1}`;
+        const newHold = {
+            id: Date.now().toString(),
+            name: customerName,
+            items: [...cartItems],
+            time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        const updated = [...heldOrders, newHold];
+        setHeldOrders(updated);
+        localStorage.setItem('mata_kuliner_held_orders', JSON.stringify(updated));
+
+        // Reset current cart
+        setCartItems([]);
+        setSelectedMember(null);
+        alert(`Pesanan untuk ${customerName} berhasil disimpan.`);
+    };
+
+    const restoreHoldOrder = (holdId: string) => {
+        const orderToRestore = heldOrders.find(h => h.id === holdId);
+        if (orderToRestore) {
+            if (cartItems.length > 0) {
+                if (!confirm("Cart saat ini tidak kosong. Ganti dengan pesanan yang disimpan?")) {
+                    return;
+                }
+            }
+            setCartItems(orderToRestore.items);
+            // Optionally try to find member by name or just leave empty
+            setSelectedMember(null);
+
+            // Remove from hold list
+            const updated = heldOrders.filter(h => h.id !== holdId);
+            setHeldOrders(updated);
+            localStorage.setItem('mata_kuliner_held_orders', JSON.stringify(updated));
+        }
+    };
+
 
     useEffect(() => {
         const fetchMenus = async () => {
@@ -39,19 +128,6 @@ export default function PosPage() {
         };
         fetchMenus();
     }, []);
-
-    // Print animation effect
-    useEffect(() => {
-        if (showReceipt && printProgress < 100) {
-            const timer = setInterval(() => {
-                setPrintProgress(prev => {
-                    const next = prev + 1.5;
-                    return next > 100 ? 100 : next;
-                });
-            }, 30);
-            return () => clearInterval(timer);
-        }
-    }, [showReceipt, printProgress]);
 
     const categories = ["Semua", ...Array.from(new Set(menus.map(m => m.category))).filter(Boolean)];
 
@@ -96,195 +172,150 @@ export default function PosPage() {
         }).filter(item => item.qty > 0));
     };
 
-    const clearCart = async (paymentMethod: 'Cash' | 'QRIS', orderType: 'Take away' | 'Here') => {
-        if (cartItems.length === 0) return;
+    const clearCart = async (paymentMethod: 'Cash' | 'QRIS', orderType: 'Take away' | 'Dine In', memberId?: number, tableId?: number) => {
+        const itemsToCheckout = cartItems;
+        if (itemsToCheckout.length === 0) return;
 
-        const subtotal = cartItems.reduce((acc, i) => acc + i.price * i.qty, 0);
-        const tax = subtotal * 0.11;
+        // Capture EXACT time of transaction from POS
+        const now = new Date();
+        const createdAt = now.toISOString();
+
+        const subtotal = itemsToCheckout.reduce((acc, i) => acc + i.price * i.qty, 0);
+        const tax = Math.round(subtotal * 0.11);
         const total = subtotal + tax;
 
-        const receiptInfo = {
-            items: [...cartItems],
-            subtotal,
-            tax,
-            total,
-            date: new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ''),
-            id: Math.random().toString().slice(2, 14),
-            paymentMethod,
-            orderType
-        };
-
-        setReceiptData(receiptInfo);
-
-        // Save transaction to backend
+        // Save transaction to backend using new unified endpoint
         try {
-            await fetch(`${API_BASE_URL}/transactions`, {
+            const checkoutData = {
+                items: itemsToCheckout,
+                paymentMethod,
+                orderType,
+                cashierName: 'Muhammad syarif',
+                memberId: memberId,
+                tableId: tableId,
+                createdAt
+            };
+
+            const response = await fetch(`${API_BASE_URL}/transactions/checkout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: total,
-                    paymentMethod,
-                    orderType,
-                    items: cartItems,
-                    subtotal,
-                    tax,
-                    cashierName: 'Muhammad syarif'
-                })
+                body: JSON.stringify(checkoutData)
             });
 
-            // Create kitchen order
-            await fetch(`${API_BASE_URL}/orders`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    customerName: 'Muhammad syarif',
-                    totalAmount: total,
-                    status: 'pending',
-                    items: cartItems,
-                    orderType,
-                    paymentMethod
-                })
-            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                alert(`Checkout failed: ${errorData.message}`);
+                return;
+            }
+
+            const data = await response.json();
+
+            // Prepare receipt data
+            const receiptInfo = {
+                items: [...itemsToCheckout],
+                subtotal,
+                tax,
+                total,
+                date: now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ''),
+                id: data.transaction?.id?.toString() || Math.random().toString().slice(2, 14),
+                paymentMethod,
+                orderType,
+                member: selectedMember
+            };
+
+            setReceiptData(receiptInfo);
+
+            setCartItems([]);
+
+            // Only show receipt immediately if it's cash. If it's QRIS, it should wait for payment.
+            // But we will handle that mostly in Cart component flow. 
+            // For now, let's keep it here or handle QRIS flow properly later.
+            if (paymentMethod === 'Cash') {
+                setShowReceipt(true);
+            }
+
+            return { orderId: data.transaction?.id };
+
         } catch (error) {
             console.error('Error saving transaction:', error);
+            alert('Terjadi kesalahan saat checkout.');
         }
-
-        setCartItems([]);
-        setPrintProgress(0);
-        setShowReceipt(true);
     };
 
     return (
         <div className="flex flex-1 min-w-0 bg-gray-50 overflow-hidden relative">
             {/* Receipt Modal */}
-            {showReceipt && (
-                <div className="fixed inset-0 z-[100] bg-blue-50/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                    <div className="absolute top-8 left-8 flex gap-4">
-                        <button
-                            onClick={() => setShowReceipt(false)}
-                            className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-lg active:scale-95"
-                        >
-                            <ArrowLeft size={24} />
-                        </button>
-                        <button
-                            onClick={async () => {
-                                const { generateReceiptPDF } = await import('@/utils/receiptPDF');
-                                generateReceiptPDF(receiptData);
-                            }}
-                            className="px-6 h-12 rounded-full bg-green-500 flex items-center justify-center gap-2 text-white hover:bg-green-600 transition-all shadow-lg active:scale-95 font-bold"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Download PDF
-                        </button>
-                    </div>
+            <ReceiptModal
+                isOpen={showReceipt}
+                onClose={() => setShowReceipt(false)}
+                data={receiptData}
+                showPrintProgress={true}
+            />
 
-                    <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col items-center p-8 relative" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
-                        <div className="w-full space-y-6">
-                            {/* Logo and Header */}
-                            <div className="flex flex-col items-center gap-3 pb-4 border-b border-blue-100">
-                                <img src="/logo.png" alt="Mata Kuliner" className="w-16 h-16 object-contain" />
-                                <h3 className="text-lg font-black text-blue-600 tracking-tight">MATA KULINER</h3>
-                            </div>
+            <ComplaintModal
+                isOpen={showComplaint}
+                onClose={() => setShowComplaint(false)}
+            />
 
-                            <div className="flex items-center justify-between text-xs font-bold text-gray-400">
-                                <span>Muhammad syarif - cashier</span>
-                            </div>
+            <ShiftModal
+                isOpen={showStartShift}
+                type="start"
+                onSuccess={() => checkActiveShift()}
+            />
 
-                            <div className="space-y-4 py-8">
-                                {receiptData.items.map((item: any) => (
-                                    <div key={item.id} className="flex justify-between items-center text-sm font-bold text-gray-700">
-                                        <span>{item.name}</span>
-                                        <span className="text-gray-900">{item.qty}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="h-px bg-blue-100 w-full" />
-
-                            <div className="space-y-4 text-xs font-bold text-gray-400 text-right">
-                                <p>{receiptData.id}</p>
-                                <div className="flex justify-between items-center">
-                                    <span>Tanggal</span>
-                                    <span>{receiptData.date}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span>Subtotal</span>
-                                    <span className="text-gray-900">RP {receiptData.subtotal.toLocaleString('id-ID')}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span>Pajak</span>
-                                    <span className="text-gray-900">RP {receiptData.tax.toLocaleString('id-ID')}</span>
-                                </div>
-                            </div>
-
-                            <div className="h-px bg-blue-100 w-full" />
-
-                            <div className="space-y-3 text-sm font-extrabold">
-                                <div className="flex justify-between items-center text-gray-400">
-                                    <span>Type order</span>
-                                    <span className="text-gray-900">{receiptData.orderType}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-gray-400">
-                                    <span>Type pay</span>
-                                    <span className="text-gray-900">{receiptData.paymentMethod}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-blue-600 pt-2">
-                                    <span>Total</span>
-                                    <span className="text-xl">RP {receiptData.total.toLocaleString('id-ID')}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-gray-400">
-                                    <span>Tunai</span>
-                                    <span className="text-gray-900">RP 300.000</span>
-                                </div>
-                            </div>
-
-                            <div className="h-px bg-blue-100 w-full" />
-
-                            <div className="flex justify-between items-end pt-4">
-                                <div className="text-xs">
-                                    <h4 className="text-blue-600 font-black tracking-tight">RM. <span className="text-blue-500">MATA RESTO</span></h4>
-                                </div>
-                                <span className="text-[8px] font-bold text-gray-400">Jl. borgol No.32 Kota malang</span>
-                            </div>
-
-                            <div className="pt-12 text-center text-[10px] font-bold text-blue-600/80 leading-relaxed px-8">
-                                Terima kasih atas kunjungan Anda,<br />kami berharap dapat melayani Anda kembali
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Progress Bar Container */}
-                    <div className="mt-16 w-full max-w-4xl px-8">
-                        <div className="flex justify-end mb-2">
-                            <span className="text-blue-600 font-black text-xl italic">{Math.round(printProgress)}%</span>
-                        </div>
-                        <div className="h-6 w-full bg-white/50 rounded-full overflow-hidden border border-white/50 p-1 shadow-inner">
-                            <div
-                                className="h-full bg-blue-400 rounded-full transition-all duration-300 ease-out shadow-lg shadow-blue-400/50"
-                                style={{ width: `${printProgress}% ` }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ShiftModal
+                isOpen={showEndShift}
+                type="end"
+                onClose={() => setShowEndShift(false)}
+                onSuccess={() => {
+                    setShowEndShift(false);
+                    checkActiveShift();
+                }}
+            />
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
                 <header className="px-8 py-6 flex items-center justify-between bg-white border-b border-gray-100">
-                    <h1 className="text-xl font-bold text-gray-900">Check Out Order</h1>
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">Check Out Order</h1>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {mounted && new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            {mounted && (
+                                <>
+                                    {" • "}
+                                    <span className="font-bold text-blue-600 ml-1">
+                                        {time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </>
+                            )}
+                        </p>
+                    </div>
 
                     <div className="flex items-center gap-4">
+                        {activeShift && (
+                            <button
+                                onClick={() => setShowEndShift(true)}
+                                className="px-4 py-2 bg-orange-50 text-orange-600 font-bold rounded-xl hover:bg-orange-100 transition-colors border border-orange-200 shadow-sm"
+                            >
+                                Tutup Shift
+                            </button>
+                        )}
+                        <HeaderProfileBadge role="Cashier" />
+                        <button
+                            onClick={() => setShowComplaint(true)}
+                            className="p-2.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors border border-red-100 relative group"
+                            title="Lapor Komplain / Insiden"
+                        >
+                            <AlertTriangle size={20} />
+                        </button>
                         <button className="p-2.5 rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors border border-gray-100 relative">
                             <Bell size={20} />
                             <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                         </button>
-                        <div className="w-10 h-10 rounded-xl overflow-hidden border border-gray-200">
-                            <img src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=100&auto=format&fit=crop&q=60" alt="Admin" className="w-full h-full object-cover" />
-                        </div>
-                        <button className="p-2.5 rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors border border-gray-100">
+                        <a href="/pos/profile" className="p-2.5 rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors border border-gray-100 block">
                             <Settings size={20} />
-                        </button>
+                        </a>
                     </div>
                 </header>
 
@@ -337,6 +368,9 @@ export default function PosPage() {
                                         name={item.name}
                                         price={parseFloat(item.price)}
                                         image={item.image}
+                                        stock={item.availableQuantity || 0}
+                                        isAvailable={item.isAvailable !== false}
+                                        outOfStockIngredient={item.outOfStockIngredient || null}
                                         onAddToCart={() => addToCart(item)}
                                     />
                                 ))}
@@ -353,6 +387,21 @@ export default function PosPage() {
                     onUpdateQty={updateQty}
                     onRemove={(id) => updateQty(id, -100)}
                     onClear={clearCart}
+                    onConfirmPayment={async (orderId) => {
+                        try {
+                            await fetch(`${API_BASE_URL}/transactions/checkout/${orderId}/confirm`, {
+                                method: 'PATCH',
+                            });
+                            setShowReceipt(true);
+                        } catch (e) {
+                            throw e;
+                        }
+                    }}
+                    selectedMember={selectedMember}
+                    onMemberSelect={setSelectedMember}
+                    onHoldOrder={saveHoldOrder}
+                    heldOrders={heldOrders}
+                    onRestoreHoldOrder={restoreHoldOrder}
                 />
             </div>
         </div>

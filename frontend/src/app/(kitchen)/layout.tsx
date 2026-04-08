@@ -1,6 +1,7 @@
 // Menu page added
 import { KitchenSidebar } from "@/components/kitchen/KitchenSidebar";
 import { Bell } from "lucide-react";
+import HeaderProfileBadge from "@/components/shared/HeaderProfileBadge";
 
 export default function KitchenLayout({
     children,
@@ -16,13 +17,11 @@ export default function KitchenLayout({
                     <h2 className="text-xl font-bold text-gray-800">Kitchen Dashboard</h2>
 
                     <div className="flex items-center gap-6">
+                        <HeaderProfileBadge role="Kitchen Manager" />
                         <button className="relative w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-200">
                             <Bell className="w-5 h-5 text-gray-600" />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                         </button>
-                        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-200">
-                            <img src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=100&auto=format&fit=crop&q=60" alt="Chef" />
-                        </div>
                     </div>
                 </header>
 

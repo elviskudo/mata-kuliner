@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Plus, Utensils, CheckCircle, AlertTriangle, Edit3, Trash2 } from "lucide-react";
+import { Search, Plus, Utensils, CheckCircle, AlertTriangle, Edit3, Trash2, Power, Lock, Unlock } from "lucide-react";
 import AddMenuModal from "@/components/kitchen/AddMenuModal";
 import MenuSuccessModal from "@/components/kitchen/menu/MenuSuccessModal";
+import { API_BASE_URL } from "@/lib/config";
 
 interface Menu {
     id: number;
@@ -24,8 +25,66 @@ export default function MenuPage() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
     const [successModal, setSuccessModal] = useState<{ open: boolean; mode: 'add' | 'update' }>({ open: false, mode: 'add' });
+    const [isStoreClosed, setIsStoreClosed] = useState(false);
 
-    const API_BASE_URL = 'http://localhost:3001';
+    const fetchStoreStatus = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/operational/store-status`);
+            const data = await res.json();
+            setIsStoreClosed(!data.isOpen);
+        } catch (error) {
+            console.error("Error fetching store status:", error);
+        }
+    };
+
+    const handleResetStore = async () => {
+        if (!confirm("Tutup Toko? Menu tidak akan dihapus, tetapi toko akan ditutup.")) return;
+        try {
+            // Check if there are any pending orders
+            const pendingRes = await fetch(`${API_BASE_URL}/orders/has-pending`);
+            const pendingData = await pendingRes.json();
+            if (pendingData.hasPending) {
+                alert("❌ Tidak bisa menutup toko!\n\nMasih ada pesanan yang belum selesai.\nSelesaikan semua pesanan terlebih dahulu.");
+                return;
+            }
+
+            // Close the store
+            const res = await fetch(`${API_BASE_URL}/operational/store-status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isOpen: false })
+            });
+            if (res.ok) {
+                // Delete all orders after successful close
+                await fetch(`${API_BASE_URL}/orders/all`, { method: 'DELETE' });
+                setIsStoreClosed(true);
+                setMenus([]);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error menutup toko");
+        }
+    };
+
+    const handleOpenStore = async () => {
+        if (confirm("Buka Toko?")) {
+            try {
+                const res = await fetch(`${API_BASE_URL}/operational/store-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isOpen: true })
+                });
+                if (res.ok) {
+                    setIsStoreClosed(false);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error opening store");
+            }
+        }
+    };
+
+
 
     const fetchMenus = async () => {
         try {
@@ -41,6 +100,7 @@ export default function MenuPage() {
 
     useEffect(() => {
         fetchMenus();
+        fetchStoreStatus();
     }, []);
 
     const handleOpenAddModal = () => {
@@ -82,6 +142,18 @@ export default function MenuPage() {
         return matchesSearch && matchesCategory;
     });
 
+    // If store is closed (auto or manual), hide menus (per user request "menu nya hilang semua")
+    // But specific requirement: "tombol buka toko itu bukan menu nya muncul lagi... menu nya itu kan harus manual"
+    // So logic remains: show menus from DB. If DB is empty (after reset), it shows nothing.
+    // If store is closed, we might want to hide even if DB has data, but per requirement "reset menu nya hilang semua", implies DB wipe.
+    // So we assume visual hiding is not needed if DB wipe happens. 
+    // However, for "Auto Close" (22:00), should we wipe? Requirement says "di reset menu nya hilang semua". 
+    // Auto-wipe might be dangerous if no one is there. 
+    // Let's assume for AUTO close, we just HIDE visually and DISABLE add. 
+    // MANUAL reset wipes DB.
+
+    const displayMenus = isStoreClosed ? [] : filteredMenus;
+
     const stats = {
         total: menus.length,
         available: menus.filter(m => m.isAvailable).length,
@@ -103,15 +175,47 @@ export default function MenuPage() {
                 mode={successModal.mode}
             />
 
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-gray-900">Menu</h1>
-                <button
-                    onClick={handleOpenAddModal}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all transform hover:scale-[1.02]"
-                >
-                    <Plus size={20} />
-                    <span>Tambah Menu</span>
-                </button>
+            <div className="flex justify-between items-center bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-3xl font-bold text-gray-900 pl-4">Menu</h1>
+                    {isStoreClosed && (
+                        <span className="bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2">
+                            <Lock size={16} /> Toko Tutup
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-4">
+                    {!isStoreClosed ? (
+                        <button
+                            onClick={handleResetStore}
+                            className="flex items-center gap-2 bg-red-100 text-red-600 px-6 py-3 rounded-2xl font-bold hover:bg-red-200 transition-all"
+                        >
+                            <Power size={20} />
+                            <span>Tutup Toko</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleOpenStore}
+                            className="flex items-center gap-2 bg-green-100 text-green-600 px-6 py-3 rounded-2xl font-bold hover:bg-green-200 transition-all"
+                        >
+                            <Unlock size={20} />
+                            <span>Buka Toko</span>
+                        </button>
+                    )}
+
+                    <button
+                        onClick={handleOpenAddModal}
+                        disabled={isStoreClosed}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold shadow-lg transition-all transform hover:scale-[1.02] ${isStoreClosed
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
+                            : "bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700"
+                            }`}
+                    >
+                        <Plus size={20} />
+                        <span>Tambah Menu</span>
+                    </button>
+                </div>
             </div>
 
             {/* Stats Cards */}
@@ -180,7 +284,7 @@ export default function MenuPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-10">
-                    {filteredMenus.map((menu) => (
+                    {displayMenus.map((menu) => (
                         <div
                             key={menu.id}
                             className={`group relative bg-white rounded-[2rem] overflow-hidden transition-all duration-300 transform hover:-translate-y-2 border-2 ${!menu.isAvailable ? "border-red-200 bg-red-50/30" : "border-gray-50 shadow-xl hover:shadow-2xl hover:shadow-blue-100"
@@ -257,11 +361,18 @@ export default function MenuPage() {
                 </div>
             )}
 
-            {filteredMenus.length === 0 && !loading && (
+            {isStoreClosed && !loading ? (
+                <div className="text-center py-20 bg-red-50 rounded-[3rem] border-2 border-dashed border-red-200">
+                    <Lock className="mx-auto w-16 h-16 text-red-300 mb-4" />
+                    <p className="text-xl font-bold text-red-500">Toko Sedang Tutup</p>
+                    <p className="text-red-400 mt-2">Semua menu telah dihapus dari daftar aktif.</p>
+                    <p className="text-red-400 text-sm">Silakan cek halaman Closing untuk Stock Opname.</p>
+                </div>
+            ) : displayMenus.length === 0 && !loading && (
                 <div className="text-center py-20 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">
                     <Utensils className="mx-auto w-16 h-16 text-gray-300 mb-4" />
-                    <p className="text-xl font-bold text-gray-500">No menus found</p>
-                    <p className="text-gray-400 mt-2">Try adjusting your search or category filter</p>
+                    <p className="text-xl font-bold text-gray-500">Menu Kosong</p>
+                    <p className="text-gray-400 mt-2">Belum ada menu yang tersedia.</p>
                 </div>
             )}
         </div>

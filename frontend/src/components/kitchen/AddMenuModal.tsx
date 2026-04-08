@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2, Upload, BookOpen, Search, ChevronDown } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
 
 interface Product {
     id: number;
@@ -34,7 +35,7 @@ export default function AddMenuModal({ isOpen, onClose, onSuccess, item }: AddMe
     const [productionQuantity, setProductionQuantity] = useState(1);
     const [loading, setLoading] = useState(false);
 
-    const API_BASE_URL = 'http://localhost:3001';
+
 
     useEffect(() => {
         if (isOpen) {
@@ -123,19 +124,28 @@ export default function AddMenuModal({ isOpen, onClose, onSuccess, item }: AddMe
         try {
             // Validate recipe selection
             if (!selectedRecipeId) {
-                alert("Resep harus dipilih!");
                 setLoading(false);
+                alert("Resep harus dipilih!");
+                return;
+            }
+
+            if (selectedIngredients.length === 0) {
+                setLoading(false);
+                alert("Bahan baku dari resep tidak ditemukan!");
                 return;
             }
 
             if (selectedIngredients.some(ing => !ing.productId)) {
-                alert("Semua bahan baku harus dipilih!");
                 setLoading(false);
+                alert("Semua bahan baku harus dipilih!");
                 return;
             }
 
             const url = item ? `${API_BASE_URL}/menus/${item.id}` : `${API_BASE_URL}/menus`;
             const method = item ? "PATCH" : "POST";
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
             const response = await fetch(url, {
                 method: method,
@@ -154,7 +164,8 @@ export default function AddMenuModal({ isOpen, onClose, onSuccess, item }: AddMe
                         quantity: ing.quantity
                     })),
                 }),
-            });
+                signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
 
             if (response.ok) {
                 onSuccess(item ? 'update' : 'add');

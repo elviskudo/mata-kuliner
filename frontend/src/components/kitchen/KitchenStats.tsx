@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { ClipboardList, CookingPot, CheckCircle, AlertTriangle } from 'lucide-react';
 import { KITCHEN_STATS } from '@/lib/data';
+import { API_BASE_URL } from "@/lib/config";
 
 export default function KitchenStats() {
     const [stockAlertCount, setStockAlertCount] = useState(0);
-    const API_BASE_URL = 'http://localhost:3001';
+
 
     useEffect(() => {
         const fetchStats = async () => {

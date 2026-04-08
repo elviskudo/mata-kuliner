@@ -6,6 +6,7 @@ import DeleteStockModal from './stock/DeleteStockModal';
 import UpdateStockModal from './stock/UpdateStockModal';
 import AddStockModal from './stock/AddStockModal';
 import StockSuccessModal from './stock/StockSuccessModal';
+import { API_BASE_URL } from "@/lib/config";
 
 interface Product {
     id: number;
@@ -32,7 +33,7 @@ export default function StockTable() {
     const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
     const [selectedItemForUpdate, setSelectedItemForUpdate] = useState<Product | null>(null);
 
-    const API_BASE_URL = 'http://localhost:3001';
+
 
     const fetchProducts = async () => {
         try {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 
 @Controller('orders')
@@ -8,6 +8,12 @@ export class OrdersController {
     @Get()
     findAll() {
         return this.ordersService.findAll();
+    }
+
+    @Get('has-pending')
+    async hasPending() {
+        const hasPending = await this.ordersService.hasPendingOrders();
+        return { hasPending };
     }
 
     @Get(':id')
@@ -23,5 +29,10 @@ export class OrdersController {
     @Patch(':id/status')
     updateStatus(@Param('id') id: string, @Body() body: { status: string }) {
         return this.ordersService.updateStatus(+id, body.status);
+    }
+
+    @Delete('all')
+    deleteAll() {
+        return this.ordersService.deleteAllOrders();
     }
 }

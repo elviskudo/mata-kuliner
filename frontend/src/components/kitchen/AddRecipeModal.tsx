@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, Search, Upload, Check } from 'lucide-react';
+import { API_BASE_URL } from "@/lib/config";
 
 interface Ingredient {
     productId: number;
@@ -35,7 +36,7 @@ export default function AddRecipeModal({ isOpen, onClose, onSuccess, initialData
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const API_BASE_URL = 'http://localhost:3001';
+
 
     useEffect(() => {
         const fetchProducts = async () => {

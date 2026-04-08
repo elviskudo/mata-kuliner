@@ -14,108 +14,119 @@ interface ReceiptData {
     id: string;
     paymentMethod?: string;
     orderType?: string;
+    cashierName?: string;
 }
 
 export async function generateReceiptPDF(receiptData: ReceiptData) {
     const jsPDF = (await import('jspdf')).default;
+
+    // Calculate dynamic height based on items
+    const baseHeight = 130;
+    const itemHeight = receiptData.items.length * 12;
+    const totalHeight = baseHeight + itemHeight;
+
     const doc = new jsPDF({
-        format: [80, 200], // Receipt size in mm (thermal printer width)
+        format: [80, totalHeight],
         unit: 'mm'
     });
 
-    // Set font to Courier (monospace)
     doc.setFont('courier');
 
-    let yPos = 10;
-    const leftMargin = 5;
-    const pageWidth = 80;
+    let y = 8;
+    const cx = 40; // center x
+    const lm = 5; // left margin
+    const rm = 75; // right margin
 
-    // Header
-    doc.setFontSize(12);
+    // ── HEADER ──────────────────────────────────────────
+    doc.setFontSize(14);
     doc.setFont('courier', 'bold');
-    doc.text('RM. MATA RESTO', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 5;
+    doc.text('MATA KULINER', cx, y, { align: 'center' });
+    y += 5;
 
+    doc.setFontSize(7);
+    doc.setFont('courier', 'normal');
+    doc.text('Jl. borgol No.32 Kota Malang', cx, y, { align: 'center' });
+    y += 4;
+    doc.text('Telp: (0341) 000-0000', cx, y, { align: 'center' });
+    y += 3;
+
+    // dashed separator
+    doc.setFontSize(7);
+    doc.text('--------------------------------', cx, y, { align: 'center' });
+    y += 5;
+
+    // ── TRANSACTION INFO ─────────────────────────────────
     doc.setFontSize(8);
     doc.setFont('courier', 'normal');
-    doc.text('Jl. borgol No.32 Kota malang', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 8;
+    doc.text(`No. : ${receiptData.id}`, lm, y);
+    y += 4;
+    doc.text(`Tgl : ${receiptData.date}`, lm, y);
+    y += 4;
+    doc.text(`Kasir: ${receiptData.cashierName || 'Muhammad Syarif'}`, lm, y);
+    y += 4;
+    doc.text(`Tipe : ${receiptData.orderType || 'Dine In'}`, lm, y);
+    y += 3;
 
-    // Separator
-    doc.text('========================================', leftMargin, yPos);
-    yPos += 5;
+    doc.text('--------------------------------', cx, y, { align: 'center' });
+    y += 5;
 
-    // Transaction Info
-    doc.setFontSize(8);
-    doc.text(`ID: ${receiptData.id}`, leftMargin, yPos);
-    yPos += 4;
-    doc.text(`Date: ${receiptData.date}`, leftMargin, yPos);
-    yPos += 4;
-    doc.text(`Cashier: Muhammad syarif`, leftMargin, yPos);
-    yPos += 6;
-
-    // Separator
-    doc.text('========================================', leftMargin, yPos);
-    yPos += 5;
-
-    // Items
+    // ── ITEMS ─────────────────────────────────────────────
     doc.setFont('courier', 'bold');
-    doc.text('ITEM', leftMargin, yPos);
-    doc.text('QTY', 50, yPos);
-    doc.text('PRICE', 60, yPos, { align: 'right' });
-    yPos += 4;
-
-    doc.setFont('courier', 'normal');
-    doc.text('----------------------------------------', leftMargin, yPos);
-    yPos += 4;
-
+    doc.setFontSize(8);
     receiptData.items.forEach(item => {
-        // Item name (wrap if too long)
-        const itemName = item.name.length > 20 ? item.name.substring(0, 20) : item.name;
-        doc.text(itemName, leftMargin, yPos);
-        doc.text(item.qty.toString(), 50, yPos);
-        doc.text(`Rp ${(item.price * item.qty).toLocaleString('id-ID')}`, 75, yPos, { align: 'right' });
-        yPos += 4;
+        const itemTotal = item.price * item.qty;
+        // Item name line
+        const name = item.name.length > 22 ? item.name.substring(0, 22) : item.name;
+        doc.text(name, lm, y);
+        y += 4;
+        // qty x price = total line (indented)
+        const qtyStr = `  ${item.qty} x ${item.price.toLocaleString('id-ID')}`;
+        const totalStr = `Rp ${itemTotal.toLocaleString('id-ID')}`;
+        doc.setFont('courier', 'normal');
+        doc.text(qtyStr, lm, y);
+        doc.text(totalStr, rm, y, { align: 'right' });
+        doc.setFont('courier', 'bold');
+        y += 5;
     });
 
-    yPos += 2;
-    doc.text('========================================', leftMargin, yPos);
-    yPos += 5;
+    doc.text('--------------------------------', cx, y, { align: 'center' });
+    y += 5;
 
-    // Totals
-    doc.text('Subtotal:', leftMargin, yPos);
-    doc.text(`Rp ${receiptData.subtotal.toLocaleString('id-ID')}`, 75, yPos, { align: 'right' });
-    yPos += 4;
+    // ── TOTALS ────────────────────────────────────────────
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(8);
+    doc.text('Subtotal', lm, y);
+    doc.text(`Rp ${receiptData.subtotal.toLocaleString('id-ID')}`, rm, y, { align: 'right' });
+    y += 4;
 
-    doc.text('Pajak (5%):', leftMargin, yPos);
-    doc.text(`Rp ${receiptData.tax.toLocaleString('id-ID')}`, 75, yPos, { align: 'right' });
-    yPos += 4;
+    doc.text('Pajak (11%)', lm, y);
+    doc.text(`Rp ${receiptData.tax.toLocaleString('id-ID')}`, rm, y, { align: 'right' });
+    y += 4;
+
+    doc.text('--------------------------------', cx, y, { align: 'center' });
+    y += 4;
 
     doc.setFont('courier', 'bold');
     doc.setFontSize(10);
-    doc.text('TOTAL:', leftMargin, yPos);
-    doc.text(`Rp ${receiptData.total.toLocaleString('id-ID')}`, 75, yPos, { align: 'right' });
-    yPos += 6;
+    doc.text('TOTAL', lm, y);
+    doc.text(`Rp ${receiptData.total.toLocaleString('id-ID')}`, rm, y, { align: 'right' });
+    y += 5;
 
-    doc.setFont('courier', 'normal');
     doc.setFontSize(8);
-    doc.text('========================================', leftMargin, yPos);
-    yPos += 5;
+    doc.setFont('courier', 'normal');
+    doc.text(`Bayar: ${receiptData.paymentMethod || 'Cash'}`, lm, y);
+    y += 4;
 
-    // Payment Info
-    doc.text(`Type order: ${receiptData.orderType || 'Take away'}`, leftMargin, yPos);
-    yPos += 4;
-    doc.text(`Type pay: ${receiptData.paymentMethod || 'Cash'}`, leftMargin, yPos);
-    yPos += 6;
+    doc.text('================================', cx, y, { align: 'center' });
+    y += 5;
 
-    doc.text('========================================', leftMargin, yPos);
-    yPos += 5;
-
-    // Footer
+    // ── FOOTER ────────────────────────────────────────────
     doc.setFontSize(7);
-    const footerText = 'Terima kasih atas kunjungan Anda,\nkami berharap dapat melayani Anda kembali';
-    doc.text(footerText, pageWidth / 2, yPos, { align: 'center' });
+    doc.text('Terima kasih atas kunjungan Anda!', cx, y, { align: 'center' });
+    y += 4;
+    doc.text('Kami berharap dapat melayani Anda kembali', cx, y, { align: 'center' });
+    y += 4;
+    doc.text('-- Mata Kuliner --', cx, y, { align: 'center' });
 
-    // Save PDF
-    doc.save(`receipt-${receiptData.id}.pdf`);
+    doc.save(`struk-${receiptData.id}.pdf`);
 }

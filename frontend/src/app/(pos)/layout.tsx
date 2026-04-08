@@ -8,7 +8,7 @@ export default function PosLayout({
     return (
         <div className="flex min-h-screen bg-gray-50">
             <PosSidebar />
-            <main className="flex-1 overflow-hidden h-screen">
+            <main className="flex-1 flex flex-col overflow-hidden h-screen">
                 {children}
             </main>
         </div>

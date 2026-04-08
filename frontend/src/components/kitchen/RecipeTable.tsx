@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Edit3, BookOpen } from 'lucide-react';
 import AddRecipeModal from './AddRecipeModal';
+import { API_BASE_URL } from "@/lib/config";
 
 interface Recipe {
     id: number;
@@ -19,7 +20,7 @@ export default function RecipeTable() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
-    const API_BASE_URL = 'http://localhost:3001';
+
 
     const fetchRecipes = async () => {
         try {

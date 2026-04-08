@@ -23,6 +23,9 @@ export class Order {
     @Column({ length: 20, nullable: true })
     paymentMethod: string; // 'Cash' or 'QRIS'
 
+    @Column({ nullable: true })
+    tableId: number;
+
     @CreateDateColumn()
     createdAt: Date;
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Patch, Param } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { Transaction } from './transaction.entity';
 
@@ -7,8 +7,18 @@ export class TransactionsController {
     constructor(private readonly transactionsService: TransactionsService) { }
 
     @Post()
-    create(@Body() transactionData: Partial<Transaction>) {
+    create(@Body() transactionData: any) {
         return this.transactionsService.create(transactionData);
+    }
+
+    @Post('checkout')
+    checkout(@Body() checkoutData: any) {
+        return this.transactionsService.checkout(checkoutData);
+    }
+
+    @Patch('checkout/:id/confirm')
+    confirmCheckout(@Param('id') id: string) {
+        return this.transactionsService.confirmCheckout(+id);
     }
 
     @Get()
@@ -24,5 +34,10 @@ export class TransactionsController {
     @Get('recent')
     getRecent() {
         return this.transactionsService.getRecent(10);
+    }
+
+    @Get('report')
+    getReport(@Query('startDate') startDate: string, @Query('endDate') endDate: string) {
+        return this.transactionsService.getFinancialReport(startDate, endDate);
     }
 }

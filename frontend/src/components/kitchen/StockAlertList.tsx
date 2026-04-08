@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronRight, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { API_BASE_URL } from "@/lib/config";
 
 interface LowStockItem {
     id: number;
@@ -16,7 +17,7 @@ interface LowStockItem {
 export default function StockAlertList() {
     const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const API_BASE_URL = 'http://localhost:3001';
+
 
     useEffect(() => {
         const fetchStockAlerts = async () => {
@@ -78,10 +79,15 @@ export default function StockAlertList() {
                 )}
             </div>
 
-            <div className="mt-4">
+            <div className="mt-4 flex flex-col gap-2">
                 <Link href="/kitchen/product">
                     <button className="w-full py-2 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-medium hover:bg-blue-100 transition-colors">
                         View All <ChevronRight size={16} className="ml-1" />
+                    </button>
+                </Link>
+                <Link href="/kitchen/restock">
+                    <button className="w-full py-2 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center font-medium hover:bg-orange-100 transition-colors">
+                        Ajukan Restock Bahan
                     </button>
                 </Link>
             </div>

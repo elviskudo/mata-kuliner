@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/shared/Sidebar";
 import { Bell, User } from "lucide-react";
+import HeaderProfileBadge from "@/components/shared/HeaderProfileBadge";
 
 export default function DashboardLayout({
     children,
@@ -15,13 +16,11 @@ export default function DashboardLayout({
                     <h2 className="text-xl font-bold text-gray-800">Overview</h2>
 
                     <div className="flex items-center gap-6">
+                        <HeaderProfileBadge role="Owner" />
                         <button className="relative w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 hover:bg-gray-100 transition-colors border border-gray-200">
                             <Bell className="w-5 h-5 text-gray-600" />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                         </button>
-                        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-200">
-                            <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100&auto=format&fit=crop&q=60" alt="User" />
-                        </div>
                     </div>
                 </header>
 

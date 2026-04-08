@@ -21,15 +21,35 @@ export class MenusService {
             relations: ['ingredients', 'ingredients.product'],
         });
 
-        // Return menus with their stock (produced portions ready to sell)
-        return menus.map(menu => ({
-            ...menu,
-            isAvailable: Number(menu.stock) > 0,
-            availableQuantity: Number(menu.stock),
-        }));
+        return menus.map(menu => {
+            // Determine availability based on ingredient stock
+            let isAvailable = true;
+            let outOfStockIngredient: string | null = null;
+
+            if (menu.ingredients && menu.ingredients.length > 0) {
+                for (const ing of menu.ingredients) {
+                    if (!ing.product) continue;
+                    const productStock = Number(ing.product.stock);
+                    const needed = Number(ing.quantity);
+                    if (productStock < needed) {
+                        isAvailable = false;
+                        outOfStockIngredient = ing.product.name;
+                        break;
+                    }
+                }
+            }
+
+            return {
+                ...menu,
+                isAvailable,
+                outOfStockIngredient,
+                availableQuantity: Number(menu.stock),
+            };
+        });
     }
 
     async create(menuData: any) {
+        console.log('Creating menu with data:', JSON.stringify(menuData));
         const { ingredients, recipeId, productionQuantity, ...details } = menuData;
 
         // Check for duplicate menu name
@@ -41,8 +61,8 @@ export class MenusService {
         const menu = this.menuRepository.create({
             ...details,
             price: details.price || 0,
-            yield: 1, // Default yield, will be updated from recipe if recipeId is provided
-            stock: 0, // Initial stock is 0, will be updated if production happens
+            yield: 1,
+            stock: 0,
             recipeId: recipeId ? parseInt(recipeId) : undefined,
         });
         const savedMenu = (await this.menuRepository.save(menu)) as unknown as Menu;
@@ -51,14 +71,12 @@ export class MenusService {
         let recipeYield = 1;
 
         if (recipeId) {
-            // Fetch ingredients from recipe
             const recipe = await this.productRepository.manager.getRepository('Recipe').findOne({
                 where: { id: recipeId },
                 relations: ['ingredients', 'ingredients.product'],
             }) as any;
 
             if (recipe) {
-                // Always use yield from recipe
                 recipeYield = Number(recipe.yield);
                 await this.menuRepository.update(savedMenu.id, { yield: recipeYield });
 
@@ -81,16 +99,19 @@ export class MenusService {
         if (menuIngredients.length > 0) {
             await this.ingredientRepository.save(menuIngredients);
 
-            // PRODUCTION SYSTEM: If productionQuantity is provided, produce the menu
             if (productionQuantity && productionQuantity > 0) {
-                // Decrease stock from products (like taking ingredients from storage to kitchen)
                 for (const item of menuIngredients) {
                     const productId = item.product.id;
                     const totalNeeded = Number(item.quantity) * productionQuantity;
-                    await this.productRepository.decrement({ id: productId }, 'stock', totalNeeded);
+
+                    // Prevent ingredient stock from going below 0
+                    const product = await this.productRepository.findOneBy({ id: productId });
+                    if (product) {
+                        const newStock = Math.max(0, Number(product.stock) - totalNeeded);
+                        await this.productRepository.update(productId, { stock: newStock });
+                    }
                 }
 
-                // Increase menu stock (produced portions ready to sell)
                 const producedPortions = productionQuantity * recipeYield;
                 await this.menuRepository.update(savedMenu.id, { stock: producedPortions });
             }
@@ -109,7 +130,6 @@ export class MenusService {
         const menu = await this.findOne(id);
 
         if (ingredients) {
-            // Simple sync: delete old and create new
             await this.ingredientRepository.delete({ menu: { id } });
 
             if (ingredients.length > 0) {
@@ -133,9 +153,20 @@ export class MenusService {
     }
 
     async remove(id: number) {
-        // Delete associated ingredients first
         await this.ingredientRepository.delete({ menu: { id } });
-        // Delete the menu
         return this.menuRepository.delete(id);
+    }
+
+    async reset() {
+        console.log('Resetting all menus...');
+        try {
+            await this.ingredientRepository.createQueryBuilder().delete().execute();
+            await this.menuRepository.createQueryBuilder().delete().execute();
+            console.log('Menus reset successfully');
+            return { message: 'All menus have been reset' };
+        } catch (error) {
+            console.error('Reset failed:', error);
+            throw new Error('Failed to reset menus');
+        }
     }
 }

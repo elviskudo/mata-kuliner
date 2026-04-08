@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardList, Package, UtensilsCrossed, Settings, HelpCircle, LogOut, BookOpen } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Package, UtensilsCrossed, Settings, HelpCircle, LogOut, BookOpen, CalendarCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const mainMenuItems = [
@@ -11,6 +11,8 @@ const mainMenuItems = [
     { icon: Package, label: "Bahan", href: "/kitchen/product" },
     { icon: BookOpen, label: "Resep", href: "/kitchen/recipe" },
     { icon: UtensilsCrossed, label: "Menu", href: "/kitchen/menu" },
+    { icon: CalendarCheck, label: "Daily Closing", href: "/kitchen/closing" },
+    { icon: User, label: "Profile", href: "/kitchen/profile" },
 ];
 
 const bottomMenuItems = [
